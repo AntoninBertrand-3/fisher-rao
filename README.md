@@ -50,17 +50,23 @@ The methodological goal is to obtain distances that are:
 
 The repository follows the layout of the earlier `Simulated_data` project:
 
-- `src/simulated_data.py` — SPD exponential map;
-- `src/covariance.py` — sample estimators of Gaussian parameters;
-- `src/distance.py` — `d_0`, numerical reference `d_F`, affine-invariant covariance distance;
-- `src/mean.py` — Frechet means of Gaussians and of SPD covariance matrices;
-- `src/geometry.py`, `src/mvn.py`, `src/horizontality.py`, `src/triangles.py`,
-  `src/mdm.py`, `src/serialization.py` — supporting geometry, exponential/logarithm
-  maps, horizontal fiber solver, triangle divergences, MDM classifiers and JSON helpers.
+- `src/distance.py` — squared distances: `dist2_L2` (Euclidean, between MVNs),
+  `dist2_Fisher` (affine-invariant, between SPD matrices), `dist2_d0` (closed-form
+  zeroth approximation) and `dist2_dF` (Fisher–Rao, by BFGS minimization of `J(K)`
+  over skew-symmetric `K`, started at `K=0`);
+- `src/mean.py` — `arithmetic_mean` of MVNs, SPD `geometric_mean` (fixed point),
+  and `frechet_mean(means, covariances, dist2)` for the `d_0` and `d_F` geometric means;
+- `src/simulated_data.py` — `random_SPD`, SPD exponential map, `random_MVNs` around a central MVN;
+- `src/covariance.py` — sample estimators of Gaussian parameters.
+
+Experiments are scripts `scripts/run_*.py`, run from the repository root as modules,
+e.g. `python -m scripts.run_MVN_means`; figures are written to `output/`.
 
 Install with `pip install -r requirements.txt` and `pip install -e .`; run the tests
 from the repository root with `python -m unittest discover -s test -t .`.
 
+The former code (horizontal fiber solver, exponential/logarithm maps, MDM classifiers,
+triangle divergences) is available in the git history before the simplification.
 The former `d_0`/`d_F`, MDM and triangle benchmarks, with all their results, are
 preserved in `archive/experiments_before_mean_focus.zip`; earlier retired
 benchmarks are in `archive/benchmarks_before_consolidation.zip`. Historical
