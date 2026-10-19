@@ -46,16 +46,38 @@ The methodological goal is to obtain distances that are:
 2. accurate with respect to Fisher–Rao;
 3. cheap enough for repeated use in classification.
 
-## Repository structure
+## Code layout
+
+The repository follows the layout of the earlier `Simulated_data` project:
+
+- `src/simulated_data.py` — SPD exponential map;
+- `src/covariance.py` — sample estimators of Gaussian parameters;
+- `src/distance.py` — `d_0`, numerical reference `d_F`, affine-invariant covariance distance;
+- `src/mean.py` — Frechet means of Gaussians and of SPD covariance matrices;
+- `src/geometry.py`, `src/mvn.py`, `src/horizontality.py`, `src/triangles.py`,
+  `src/mdm.py`, `src/serialization.py` — supporting geometry, exponential/logarithm
+  maps, horizontal fiber solver, triangle divergences, MDM classifiers and JSON helpers.
+
+Install with `pip install -r requirements.txt` and `pip install -e .`; run the tests
+from the repository root with `python -m unittest discover -s test -t .`.
+
+The former `d_0`/`d_F`, MDM and triangle benchmarks, with all their results, are
+preserved in `archive/experiments_before_mean_focus.zip`; earlier retired
+benchmarks are in `archive/benchmarks_before_consolidation.zip`. Historical
+research notes refer to those archived files.
+
+## Repository directories
 
 - `docs/notation.md` — canonical notation and formulas.
 - `docs/state.md` — current state of the research, including proved results, numerical evidence, and unresolved points.
 - `docs/open_problems.md` — active research questions, ordered by priority.
 - `docs/bibliography.md` — references and why they matter.
 - `papers/` — local copies of relevant papers.
-- `src/` — reusable, tested mathematical/numerical code.
-- `experiments/` — exploratory and reproducible numerical experiments.
-- `tests/` — automated tests.
+- `src/` — reusable, tested mathematical/numerical code, as flat modules imported with `from src.<module> import ...`.
+- `scripts/` — experiment scripts `run_*.py`, run from the repository root.
+- `output/` — figures and data written by the scripts.
+- `test/` — automated `unittest` tests, one `test_<module>.py` per module.
+- `archive/` — retired benchmark scripts and their results.
 - `paper/` — article/report sources.
 - `slides/` — presentation sources.
 

@@ -1,5 +1,32 @@
 # Open problems
 
+**Triangle comparison (2026-10-19).** The two intended published divergences
+are identified as Collas et al. (ICASSP 2022), Corollaries 1 and 2. Their
+center-first objectives and the complete 70-trial 3D MDM comparison are now
+implemented and tested. See `docs/triangle_divergences.md` and `docs/state.md`.
+This resolves the bibliographic identification and baseline implementation,
+not global center optimality or the separate geometric-mean heuristic in D1.
+
+**Computational extension (2026-10-19).** The sampled MDM generator now supports
+10D with batches 15,30,60 and separate output files. See `docs/mdm_benchmark.md`
+for the parent extension and noise scaling. Generator checks cover 3D and 10D;
+this does not close A1 or certify global Fisher means. A pre-existing sign
+conflict in the mean geodesic equation is recorded in `docs/state.md`.
+
+Current benchmark inventory (2026-10-18): only `experiments/compare_d0_df.py`
+(38 fixed 3D pairs) and `experiments/compare_mdm_sampled.py` (sampled 3D MDM)
+remain active. Earlier benchmark scripts and results referenced below are
+historical and preserved with their original paths inside
+`archive/benchmarks_before_consolidation.zip`. This consolidation does not
+resolve the theoretical qualifications recorded below.
+
+**Computational progress (2026-10-18).** The 3D MDM benchmark now separates
+variation between latent Gaussian laws from small-batch estimation noise,
+and compares d0, numerical d_F and Euclidean prediction distances on shared
+Fisher prototypes. See `docs/mdm_benchmark.md`. This isolates prediction
+distance from prototype construction in a synthetic setting; it does not
+resolve A1, certify Fisher means globally, or establish acoustic performance.
+
 Last updated: 2026-09-05.
 
 Problems are grouped by priority. When one is solved or materially advanced, update both this file and `state.md`.
@@ -260,6 +287,16 @@ using the exact skew minimization and/or an independent method.
 - documented tolerances.
 
 No approximation should be benchmarked until this exists.
+
+**Progress (2026-09-11).** The numerical core and mixed fourteen-case benchmark
+now exist. A second objective, the lifted horizontality residual with an
+analytic Frechet-log gradient, reproduces all fourteen reduced-reference
+distances within 9.86e-13 after numerical qualification. See state.md section 16
+and `results/horizontal_presentation_cases.md`. This experiment assumes that the
+horizontal projection is minimizing; it does not close A1 or certify global
+optimality. Gradient stopping alone and unresolved spectra on escaping random
+restarts are demonstrated reliability issues; residual and spectral checks
+are necessary in addition to BFGS success flags.
 
 ---
 
