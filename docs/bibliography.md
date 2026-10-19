@@ -262,19 +262,23 @@ Status:
 
 ---
 
-## Bibliographic item still to resolve
+## Collas et al. (2022): two directed triangle divergences
 
-Earlier presentation notes referred informally to a “Bouchard” / “Ces Distribution F. Bouchard” reference.
+A. Collas, F. Bouchard, G. Ginolhac, A. Breloy, C. Ren and J.-P. Ovarlez,
+**On the Use of Geodesic Triangles between Gaussian Distributions for
+Classification Problems**, ICASSP 2022.
 
-Its exact bibliographic identity has not yet been recovered reliably.
+DOI: https://doi.org/10.1109/ICASSP43922.2022.9747872
 
-Do not invent a citation. When the PDF or title is found, add:
+Author PDF: https://www.antoinecollas.fr/assets/pdf/papers/2022_ICASSP.pdf
 
-- full authors;
-- exact title;
-- year/journal;
-- DOI/arXiv;
-- which formula/result is used in the project.
+The user identified this article as the intended triangle comparison.
+Corollaries 1 and 2 define delta_c^2 and delta_perp^2; equation (18) defines
+their center-first center objectives. Equation (7) uses the standard Fisher
+normalization. These are directed divergences, distinct from the general
+Fisher distance and the project's geometric-mean covariance modification.
+Implementation formulas, project-derived gradients and numerical qualifications
+are recorded in `docs/triangle_divergences.md`.
 
 ---
 
