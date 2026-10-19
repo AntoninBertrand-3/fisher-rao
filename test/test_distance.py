@@ -1,6 +1,6 @@
 import unittest
 import numpy as np
-from src.distance import dist2_L2, dist2_Fisher, dist2_d0
+from src.distance import dist2_L2, dist2_Fisher, dist2_d0, dist2_dF
 
 
 class TestDistances(unittest.TestCase):
@@ -70,6 +70,33 @@ class TestDistances(unittest.TestCase):
             b = np.arange(d, dtype=float)
             self.assertAlmostEqual(dist2_d0(T @ mu0 + b, T @ C0 @ T.T, T @ mu1 + b, T @ C1 @ T.T),
                                    dist2_d0(mu0, C0, mu1, C1), places=8)
+
+    # ---------- 6. d_F par optimisation ----------
+    def test_dF_below_d0(self):
+        for mu0, C0, mu1, C1 in self.random_pairs:
+            self.assertLessEqual(dist2_dF(mu0, C0, mu1, C1), dist2_d0(mu0, C0, mu1, C1) + 1e-12)
+
+    def test_dF_exact_cases(self):
+        # n = 1 et moyennes égales : d_0 est exact.
+        args = (np.array([1.]), np.array([[4.]]), np.array([3.]), np.array([[9.]]))
+        self.assertAlmostEqual(dist2_dF(*args), dist2_d0(*args), places=12)
+        self.assertAlmostEqual(dist2_dF(self.mu0, self.A, self.mu0, self.B),
+                               dist2_Fisher(self.A, self.B) / 2, places=10)
+
+    def test_dF_improves_on_d0(self):
+        # Exemple où la correction antisymétrique diminue strictement la distance.
+        args = (np.array([.2, -.3]), np.eye(2), np.array([2., 3.]), np.diag([.2, 5.]))
+        self.assertLess(dist2_dF(*args), dist2_d0(*args) - 1e-5)
+
+    def test_dF_symmetry_and_affine_invariance(self):
+        for mu0, C0, mu1, C1 in self.random_pairs:
+            d = mu0.size
+            T = np.eye(d) + 0.3 * np.triu(np.ones((d, d)), 1)
+            b = np.arange(d, dtype=float)
+            reference = dist2_dF(mu0, C0, mu1, C1)
+            self.assertAlmostEqual(dist2_dF(mu1, C1, mu0, C0), reference, places=8)
+            self.assertAlmostEqual(dist2_dF(T @ mu0 + b, T @ C0 @ T.T, T @ mu1 + b, T @ C1 @ T.T),
+                                   reference, places=8)
 
 
 if __name__ == "__main__":

@@ -1,137 +1,80 @@
-"""Exact cases, invariance and failure contracts for Fisher and covariance-only means."""
-
 import unittest
-
 import numpy as np
-from scipy.linalg import expm, fractional_matrix_power, logm
-
-from src.distance import covariance_distance
-from src.mean import covariance_mean, frechet_mean_mvn
-from src.mvn import exp_map_mvn, log_map_mvn
-
-
-class TestFrechetMeanMvn(unittest.TestCase):
-    def test_univariate_midpoint_and_mean(self) -> None:
-        """Check the exact midpoint of N(-a,s²) and N(a,s²), including inflation."""
-        result = log_map_mvn([-2.], [[1.]], [2.], [[1.]])
-        self.assertTrue(result.reliable)
-        midpoint = exp_map_mvn([-2.], [[1.]], result.mean_tangent, result.covariance_tangent, time=.5)
-        np.testing.assert_allclose(midpoint[0], [0.], atol=1e-12)
-        np.testing.assert_allclose(midpoint[1], [[3.]], atol=1e-12)
-        mean = frechet_mean_mvn([[-2.], [2.]], [[[1.]], [[1.]]], return_iterates=True)
-        self.assertTrue(mean.converged, mean.message)
-        np.testing.assert_allclose(mean.mean, [0.], atol=1e-10)
-        np.testing.assert_allclose(mean.covariance, [[3.]], atol=3e-6)
-        self.assertTrue(np.all(np.diff([row['objective'] for row in mean.history]) <= 0))
-        self.assertEqual(len(mean.iterates), len(mean.history))
-
-    def test_equal_mean_diagonal_covariances(self) -> None:
-        """Recover componentwise geometric covariance means and fixed mean vectors."""
-        covariances = np.array([np.diag([1., 4.]), np.diag([4., 1.]), np.diag([2., 2.])])
-        result = frechet_mean_mvn(np.tile([1., -1.], (3, 1)), covariances)
-        self.assertTrue(result.converged, result.message)
-        np.testing.assert_allclose(result.mean, [1., -1.], atol=1e-12)
-        np.testing.assert_allclose(result.covariance, np.diag([2., 2.]), atol=1e-9)
-
-    def test_singleton_and_identical_inputs(self) -> None:
-        """Check exact zero tangent behavior and already-stationary means."""
-        mu, C = np.array([1., 2.]), np.array([[2., .3], [.3, 1.]])
-        result = log_map_mvn(mu, C, mu, C)
-        self.assertTrue(result.reliable)
-        self.assertLess(result.distance, 1e-12)
-        mean = frechet_mean_mvn(mu[None], C[None])
-        self.assertTrue(mean.converged)
-        np.testing.assert_allclose(mean.mean, mu, atol=1e-12)
-        np.testing.assert_allclose(mean.covariance, C, atol=1e-12)
-
-    def test_failure_and_validation_contracts(self) -> None:
-        """Reject invalid inputs and retain explicit nonconvergence status."""
-        with self.assertRaises(ValueError):
-            exp_map_mvn([0., 0.], np.eye(2), [1., 0.], [[0., 1.], [0., 0.]])
-        with self.assertRaises(ValueError):
-            log_map_mvn([0.], [[1.]], [1.], [[-1.]])
-        with self.assertRaises(ValueError):
-            frechet_mean_mvn(np.empty((0, 2)), np.empty((0, 2, 2)))
-        result = log_map_mvn([0., 0.], np.eye(2), [2., 3.], np.diag([.2, 5.]),
-                             n_starts=1, maxiter=1)
-        self.assertFalse(result.reliable)
-        with self.assertRaisesRegex(RuntimeError, 'qualification'):
-            frechet_mean_mvn([[0., 0.], [2., 3.]], [np.eye(2), np.diag([.2, 5.])],
-                             init=(np.zeros(2), np.eye(2)), log_options=dict(n_starts=1, maxiter=1))
-        result = frechet_mean_mvn([[-2.], [2.]], [[[1.]], [[1.]]], max_iter=0)
-        self.assertFalse(result.converged)
-        self.assertIn('Maximum iteration', result.message)
-
-    def test_average_tangent_is_descent_direction(self) -> None:
-        """Check the first variation of squared lengths by centered differences."""
-        mean, covariance = np.array([.1, -.2]), np.array([[1.3, .1], [.1, .9]])
-        means = np.array([[.4, .2], [-.3, .5], [.7, -.1]])
-        covariances = np.array([[[1., .2], [.2, 2.]], [[2., -.3], [-.3, 1.]], [[.8, .1], [.1, 1.1]]])
-        logs = [log_map_mvn(mean, covariance, mu, C) for mu, C in zip(means, covariances)]
-        self.assertTrue(all(result.reliable for result in logs))
-        v = np.mean([result.mean_tangent for result in logs], axis=0)
-        T = np.mean([result.covariance_tangent for result in logs], axis=0)
-        squared_norm = v @ np.linalg.solve(covariance, v) + .5 * np.trace(np.linalg.solve(covariance, T) @ np.linalg.solve(covariance, T))
-        values = []
-        for time in [-1e-4, 1e-4]:
-            base = exp_map_mvn(mean, covariance, v, T, time=time)
-            results = [log_map_mvn(*base, mu, C) for mu, C in zip(means, covariances)]
-            self.assertTrue(all(result.reliable for result in results))
-            values.append(np.mean([result.distance**2 for result in results]) / 2)
-        np.testing.assert_allclose((values[1] - values[0]) / 2e-4, -squared_norm, rtol=1e-5, atol=1e-8)
-        result = frechet_mean_mvn(means, covariances)
-        self.assertTrue(result.converged, result.message)
-        B, shift = np.array([[1.1, .2], [-.3, .9]]), np.array([1., -2.])
-        transformed = frechet_mean_mvn(means @ B.T + shift, B @ covariances @ B.T)
-        self.assertTrue(transformed.converged, transformed.message)
-        np.testing.assert_allclose(transformed.mean, B @ result.mean + shift, atol=2e-6)
-        np.testing.assert_allclose(transformed.covariance, B @ result.covariance @ B.T, atol=2e-6)
-
-    def test_dense_covariance_midpoint_and_backtracking_failure(self) -> None:
-        """Check a noncommuting SPD midpoint and explicit rejected-step termination."""
-        C0, C1 = np.array([[2., .4], [.4, 1.]]), np.array([[1., -.2], [-.2, 3.]])
-        expected = C0 @ expm(.5 * logm(np.linalg.solve(C0, C1)))
-        result = frechet_mean_mvn([[0., 0.], [0., 0.]], [C0, C1])
-        self.assertTrue(result.converged, result.message)
-        np.testing.assert_allclose(result.covariance, expected, atol=2e-6)
-        rejected = frechet_mean_mvn([[-2.], [2.]], [[[1.]], [[1.]]],
-                                    step_size=10., max_backtracks=0, return_iterates=True)
-        self.assertFalse(rejected.converged)
-        self.assertIn('Backtracking failed', rejected.message)
-        self.assertEqual(len(rejected.iterates), 1)
+from scipy.linalg import sqrtm
+from src.distance import dist2_L2, dist2_d0, dist2_dF
+from src.mean import arithmetic_mean, geometric_mean, frechet_mean
+from src.simulated_data import random_SPD, random_MVNs
 
 
-class TestCovarianceMean(unittest.TestCase):
-    def test_commuting_mean_and_distance(self) -> None:
-        """Recover coordinatewise geometric means and the logarithmic distance."""
+class TestMeans(unittest.TestCase):
+    def setUp(self):
+        np.random.seed(0)
+        self.mu = np.array([1., -0.5, 2.])
+        self.C = random_SPD(3, 10.0)
+        self.means, self.covs = random_MVNs(self.mu, self.C, 10, radius=0.5)
+        A3 = np.array([[3., 1., 0.],
+                       [1., 2., 1.],
+                       [0., 1., 2.]])
+        B3 = np.array([[2., 0., 1.],
+                       [0., 2., 0.5],
+                       [1., 0.5, 3.]])
+        self.A3, self.B3 = A3, B3
+
+    # ---------- Moyenne arithmétique ----------
+    def test_arithmetic_mean(self):
+        m, S = arithmetic_mean(self.means, self.covs)
+        self.assertTrue(np.allclose(m, self.means.mean(axis=0)))
+        self.assertTrue(np.allclose(S, self.covs.mean(axis=0)))
+
+    # ---------- Moyenne géométrique SPD ----------
+    def test_geometric_two_matrix_closed_form(self):
+        G_impl = geometric_mean(np.stack([self.A3, self.B3]), max_iter=300, tol=1e-12)
+        A_half = sqrtm(self.A3)
+        A_mhalf = np.linalg.inv(A_half)
+        G_closed = A_half @ sqrtm(A_mhalf @ self.B3 @ A_mhalf) @ A_half
+        self.assertTrue(np.allclose(G_impl, G_closed, atol=1e-8))
+
+    def test_geometric_commuting_case(self):
+        # Matrices diagonales : moyenne géométrique coefficient par coefficient.
         diagonals = np.array([[1., 2., 4.], [3., 5., 2.], [7., 1., 9.]])
-        matrices = np.array([np.diag(row) for row in diagonals])
-        result = covariance_mean(matrices)
-        self.assertTrue(result['converged'])
-        np.testing.assert_allclose(result['matrix'], np.diag(np.exp(np.log(diagonals).mean(axis=0))), atol=1e-9)
-        np.testing.assert_allclose(covariance_distance(matrices[0], matrices[1]),
-                                   np.linalg.norm(np.log(diagonals[1] / diagonals[0])), atol=1e-12)
+        G = geometric_mean(np.array([np.diag(d) for d in diagonals]), max_iter=200, tol=1e-12)
+        self.assertTrue(np.allclose(G, np.diag(np.exp(np.log(diagonals).mean(axis=0))), atol=1e-10))
 
-    def test_noncommuting_midpoint_and_congruence(self) -> None:
-        """Check the exact two-point geometric mean and general congruence invariance."""
-        first = np.diag([1., 2., 5.])
-        factor = np.array([[1., .2, -.1], [.4, 1., .3], [.1, -.2, 1.]])
-        second = factor @ np.diag([3., 1., 2.]) @ factor.T
-        root = fractional_matrix_power(first, .5)
-        inverse_root = fractional_matrix_power(first, -.5)
-        expected = root @ fractional_matrix_power(inverse_root @ second @ inverse_root, .5) @ root
-        result = covariance_mean(np.array([first, second]))
-        self.assertTrue(result['converged'])
-        np.testing.assert_allclose(result['matrix'], expected, atol=1e-8)
-        matrices = np.array([first, second, np.eye(3)])
-        original = covariance_mean(matrices)
-        transformed = covariance_mean(factor @ matrices @ factor.T)
-        self.assertTrue(original['converged'] and transformed['converged'])
-        np.testing.assert_allclose(transformed['matrix'], factor @ original['matrix'] @ factor.T, atol=1e-7)
-        np.testing.assert_allclose(covariance_distance(first, second),
-                                   covariance_distance(factor @ first @ factor.T, factor @ second @ factor.T), atol=1e-12)
-        with self.assertRaises(ValueError):
-            covariance_mean(np.array([np.diag([1., 0., 1.])]))
+    # ---------- Moyenne de Fréchet ----------
+    def test_frechet_L2_is_arithmetic(self):
+        # Pour la distance euclidienne, la moyenne de Fréchet est la moyenne arithmétique.
+        m, S = frechet_mean(self.means, self.covs, dist2_L2)
+        am, aS = arithmetic_mean(self.means, self.covs)
+        self.assertTrue(np.allclose(m, am, atol=1e-6))
+        self.assertTrue(np.allclose(S, aS, atol=1e-6))
+
+    def test_frechet_single_mvn(self):
+        m, S = frechet_mean(self.means[:1], self.covs[:1], dist2_d0)
+        self.assertTrue(np.allclose(m, self.means[0], atol=1e-5))
+        self.assertTrue(np.allclose(S, self.covs[0], atol=1e-5))
+
+    def test_frechet_d0_equal_means(self):
+        # Moyennes égales : d_0^2 = dist2_Fisher / 2, donc la covariance est la moyenne géométrique SPD.
+        same = np.repeat(self.mu[None], len(self.covs), axis=0)
+        m, S = frechet_mean(same, self.covs, dist2_d0)
+        G = geometric_mean(self.covs, max_iter=200, tol=1e-12)
+        self.assertTrue(np.allclose(m, self.mu, atol=1e-5))
+        self.assertTrue(np.allclose(S, G, atol=1e-5))
+
+    def test_frechet_dF_equal_means(self):
+        # Même propriété pour d_F, sur un petit exemple (le calcul est plus coûteux).
+        same = np.zeros((3, 2))
+        covs = np.stack([self.A3[:2, :2], self.B3[:2, :2], np.diag([0.5, 4.])])
+        m, S = frechet_mean(same, covs, dist2_dF)
+        G = geometric_mean(covs, max_iter=200, tol=1e-12)
+        self.assertTrue(np.allclose(m, 0, atol=1e-5))
+        self.assertTrue(np.allclose(S, G, atol=1e-5))
+
+    def test_frechet_outputs_spd(self):
+        for dist2 in (dist2_d0, dist2_dF):
+            m, S = frechet_mean(self.means[:4, :2], self.covs[:4, :2, :2], dist2)
+            self.assertTrue(np.allclose(S, S.T, atol=1e-12))
+            self.assertTrue((np.linalg.eigvalsh(S) > 0).all())
 
 
 if __name__ == "__main__":
