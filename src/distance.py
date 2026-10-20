@@ -2,7 +2,7 @@ import numpy as np
 from scipy.optimize import minimize
 
 
-def dist2_L2(mu0: np.ndarray, C0: np.ndarray, mu1: np.ndarray, C1: np.ndarray) -> float:
+def dist2_L2(mu0: np.ndarray, Sigma0: np.ndarray, mu1: np.ndarray, Sigma1: np.ndarray) -> float:
     """
     Squared Euclidean distance between two MVNs.
 
@@ -10,15 +10,15 @@ def dist2_L2(mu0: np.ndarray, C0: np.ndarray, mu1: np.ndarray, C1: np.ndarray) -
     ----------
     mu0, mu1 : ndarray
         Means of shape (n_features,).
-    C0, C1 : ndarray
+    Sigma0, Sigma1 : ndarray
         SPD covariance matrices of shape (n_features, n_features).
 
     Returns
     -------
     float
-        ||mu0 - mu1||^2 + ||C0 - C1||_F^2.
+        ||mu0 - mu1||^2 + ||Sigma0 - Sigma1||_F^2.
     """
-    return np.sum((mu0 - mu1)**2) + np.sum((C0 - C1)**2)
+    return np.sum((mu0 - mu1)**2) + np.sum((Sigma0 - Sigma1)**2)
 
 
 def dist2_Fisher(A: np.ndarray, B: np.ndarray) -> float:
@@ -39,12 +39,12 @@ def dist2_Fisher(A: np.ndarray, B: np.ndarray) -> float:
     return np.sum(np.log(np.linalg.eigvalsh(iL @ A @ iL.T))**2)
 
 
-def dist2_d0(mu0: np.ndarray, C0: np.ndarray, mu1: np.ndarray, C1: np.ndarray) -> float:
+def dist2_d0(mu0: np.ndarray, Sigma0: np.ndarray, mu1: np.ndarray, Sigma1: np.ndarray) -> float:
     """
     Squared zeroth approximation d_0 of the Fisher-Rao distance between two MVNs.
 
     The pair is first normalized so that the first MVN is N(0, I):
-    mu = L^{-1}(mu1 - mu0) and S = L^{-1} C1 L^{-T}, with C0 = L L^T. Then
+    mu = L^{-1}(mu1 - mu0) and S = L^{-1} Sigma1 L^{-T}, with Sigma0 = L L^T. Then
     d_0^2 = 2 sum_i arccosh^2(c_i), where c_i are the singular values of
     S^{-1/2} Y and Y = (I + S + mu mu^T / 2) / 2.
 
@@ -52,17 +52,17 @@ def dist2_d0(mu0: np.ndarray, C0: np.ndarray, mu1: np.ndarray, C1: np.ndarray) -
     ----------
     mu0, mu1 : ndarray
         Means of shape (n_features,).
-    C0, C1 : ndarray
+    Sigma0, Sigma1 : ndarray
         SPD covariance matrices of shape (n_features, n_features).
 
     Returns
     -------
     float
-        Squared d_0 distance between N(mu0, C0) and N(mu1, C1).
+        Squared d_0 distance between N(mu0, Sigma0) and N(mu1, Sigma1).
     """
-    iL = np.linalg.inv(np.linalg.cholesky(C0))
+    iL = np.linalg.inv(np.linalg.cholesky(Sigma0))
     mu = iL @ (mu1 - mu0)
-    S = iL @ C1 @ iL.T
+    S = iL @ Sigma1 @ iL.T
     Y = 0.5 * (np.eye(mu.size) + S + 0.5 * np.outer(mu, mu))
     iLS = np.linalg.inv(np.linalg.cholesky(S))
     c = np.linalg.svd(iLS @ Y, compute_uv=False)
@@ -105,7 +105,7 @@ def _skew_objective(params: np.ndarray, W: np.ndarray, Y: np.ndarray) -> tuple[f
     return 2 * np.sum(a**2), G[rows, cols] - G[cols, rows]
 
 
-def dist2_dF(mu0: np.ndarray, C0: np.ndarray, mu1: np.ndarray, C1: np.ndarray,
+def dist2_dF(mu0: np.ndarray, Sigma0: np.ndarray, mu1: np.ndarray, Sigma1: np.ndarray,
              tol: float = 1e-10, max_iter: int = 1000) -> float:
     """
     Squared Fisher-Rao distance between two MVNs, computed by optimization.
@@ -120,7 +120,7 @@ def dist2_dF(mu0: np.ndarray, C0: np.ndarray, mu1: np.ndarray, C1: np.ndarray,
     ----------
     mu0, mu1 : ndarray
         Means of shape (n_features,).
-    C0, C1 : ndarray
+    Sigma0, Sigma1 : ndarray
         SPD covariance matrices of shape (n_features, n_features).
     tol : float, optional
         Gradient tolerance of BFGS (default 1e-10).
@@ -130,11 +130,11 @@ def dist2_dF(mu0: np.ndarray, C0: np.ndarray, mu1: np.ndarray, C1: np.ndarray,
     Returns
     -------
     float
-        Squared Fisher-Rao distance between N(mu0, C0) and N(mu1, C1).
+        Squared Fisher-Rao distance between N(mu0, Sigma0) and N(mu1, Sigma1).
     """
-    iL = np.linalg.inv(np.linalg.cholesky(C0))
+    iL = np.linalg.inv(np.linalg.cholesky(Sigma0))
     mu = iL @ (mu1 - mu0)
-    S = iL @ C1 @ iL.T
+    S = iL @ Sigma1 @ iL.T
     Y = 0.5 * (np.eye(mu.size) + S + 0.5 * np.outer(mu, mu))
     W = np.linalg.inv(np.linalg.cholesky(S))
     if mu.size == 1:
