@@ -3,7 +3,8 @@ import unittest
 import numpy as np
 from scipy.linalg import expm
 
-from src.simulated_data import exp_map_spd, random_MVNs, random_SPD, sym
+from src.simulated_data import (exp_map_spd, project_to_spd, projection, random_MVNs,
+                                random_SPD, random_tangent_vector, sym)
 
 
 class TestRandomSPD(unittest.TestCase):
@@ -69,6 +70,39 @@ class TestExpMapSPD(unittest.TestCase):
                                   transform @ tangents @ transform.T)
         np.testing.assert_allclose(transformed, transform @ result @ transform.T,
                                    rtol=1e-12, atol=1e-13)
+
+
+class TestTangentVectors(unittest.TestCase):
+    def test_projection(self):
+        point = np.eye(3)
+        X = np.arange(9.).reshape(3, 3)
+        np.testing.assert_array_equal(projection(point, X), sym(X))
+        np.testing.assert_array_equal(projection(point, X + 2j * X), sym(X))
+
+    def test_random_tangent_vector(self):
+        np.random.seed(0)
+        eta = random_tangent_vector(4, np.eye(4))
+        self.assertEqual(eta.shape, (4, 4))
+        np.testing.assert_array_equal(eta, eta.T)
+
+
+class TestProjectToSPD(unittest.TestCase):
+    def test_spd_matrix_unchanged(self):
+        A = np.array([[2., .4], [.4, 1.]])
+        np.testing.assert_allclose(project_to_spd(A), A, rtol=1e-13, atol=1e-14)
+
+    def test_eigenvalue_clipping(self):
+        # Valeurs propres -1, 0.5, 20 dans une base non canonique.
+        Q = np.linalg.qr(np.array([[1., 2., 0.], [0., 1., 3.], [1., 0., 1.]]))[0]
+        A = (Q * np.array([-1., .5, 20.])) @ Q.T
+        np.testing.assert_allclose(np.linalg.eigvalsh(project_to_spd(A, eps=1e-3)),
+                                   [1e-3, .5, 20.], rtol=1e-12)
+        np.testing.assert_allclose(np.linalg.eigvalsh(project_to_spd(A, eps=1e-3, max_eig=10.)),
+                                   [1e-3, .5, 10.], rtol=1e-12)
+
+    def test_nonsymmetric_input(self):
+        A = np.array([[1., 2.], [0., 1.]])
+        np.testing.assert_allclose(project_to_spd(A), project_to_spd(sym(A)), atol=0)
 
 
 if __name__ == "__main__":

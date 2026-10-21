@@ -121,3 +121,71 @@ def random_MVNs(mu: np.ndarray, C: np.ndarray, n_mvn: int, radius: float = 0.1) 
     tangents = radius * sym(np.random.standard_normal((n_mvn, n_features, n_features)))
     covariances = exp_map_spd(C, tangents)
     return means, covariances
+
+
+def projection(point: np.ndarray, vector: np.ndarray) -> np.ndarray:
+    """
+    Projects a square matrix onto the tangent space of the SPD manifold at point.
+
+    The tangent space at any SPD point is the space of symmetric matrices,
+    so the projection is the symmetrical part.
+
+    Parameters
+    ----------
+    point : ndarray
+        Reference SPD matrix of shape (n_features, n_features) (not used).
+    vector : ndarray
+        Matrix of shape (n_features, n_features).
+
+    Returns
+    -------
+    ndarray
+        Symmetrical part of the real part of vector, of shape (n_features, n_features).
+    """
+    return sym(np.real(vector))
+
+
+def random_tangent_vector(n_features: int, point: np.ndarray) -> np.ndarray:
+    """
+    Draws a random tangent vector of the SPD manifold at point.
+
+    Parameters
+    ----------
+    n_features : int
+        Dimension of the SPD matrices.
+    point : ndarray
+        Reference SPD matrix of shape (n_features, n_features) (not used).
+
+    Returns
+    -------
+    ndarray
+        Symmetrical part of a standard Gaussian matrix, of shape (n_features, n_features).
+    """
+    return projection(point, np.random.standard_normal((n_features, n_features)))
+
+
+def project_to_spd(A: np.ndarray, eps: float = 1e-8, max_eig: float | None = None) -> np.ndarray:
+    """
+    Projects a square matrix onto the SPD matrices with spectrum in [eps, max_eig].
+
+    The symmetrical part of A is diagonalized and its eigenvalues are clipped
+    from below by eps, and from above by max_eig when it is given.
+
+    Parameters
+    ----------
+    A : ndarray
+        Square matrix of shape (n_features, n_features), not necessarily
+        symmetric or positive definite.
+    eps : float, default=1e-8
+        Lower bound on the eigenvalues.
+    max_eig : float or None, default=None
+        Upper bound on the eigenvalues; no upper clipping if None.
+
+    Returns
+    -------
+    ndarray
+        SPD matrix of shape (n_features, n_features).
+    """
+    vals, vecs = np.linalg.eigh(sym(A))
+    vals_clipped = np.clip(vals, eps, max_eig)
+    return (vecs * vals_clipped) @ vecs.T
