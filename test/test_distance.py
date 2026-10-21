@@ -1,6 +1,7 @@
 import unittest
 import numpy as np
-from src.distance import dist2_L2, dist2_Fisher, dist2_d0, dist2_dF, dist2_dF_iterates
+from src.distance import (dist2_L2, dist2_Fisher, dist2_d0, dist2_dF, dist2_dF_iterates,
+                          dist2_dF_with_minimizer)
 
 
 class TestDistances(unittest.TestCase):
@@ -111,6 +112,18 @@ class TestDistances(unittest.TestCase):
             self.assertEqual(dist2, J[-1])
             self.assertAlmostEqual(dist2, dist2_dF(mu0, C0, mu1, C1), places=12)
             self.assertTrue(np.all(np.diff(J) <= 1e-12))
+
+    def test_dF_with_minimizer(self):
+        # Même valeur que dist2_dF, K* antisymétrique, et redémarrage en K* stable.
+        for mu0, C0, mu1, C1 in self.random_pairs:
+            dist2, K = dist2_dF_with_minimizer(mu0, C0, mu1, C1)
+            d = mu0.size
+            self.assertEqual(K.shape, (d, d))
+            np.testing.assert_array_equal(K, -K.T)
+            self.assertEqual(dist2, dist2_dF(mu0, C0, mu1, C1))
+            dist2_warm, K_warm = dist2_dF_with_minimizer(mu0, C0, mu1, C1, K_init=K)
+            self.assertAlmostEqual(dist2_warm, dist2, places=10)
+            np.testing.assert_allclose(K_warm, K, atol=1e-6)
 
 
 if __name__ == "__main__":

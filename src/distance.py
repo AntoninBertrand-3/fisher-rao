@@ -1,5 +1,7 @@
+from typing import Callable
+
 import numpy as np
-from scipy.optimize import minimize
+from scipy.optimize import OptimizeResult, minimize
 
 
 def dist2_L2(mu0: np.ndarray, Sigma0: np.ndarray, mu1: np.ndarray, Sigma1: np.ndarray) -> float:
@@ -187,9 +189,80 @@ def dist2_dF(mu0: np.ndarray, Sigma0: np.ndarray, mu1: np.ndarray, Sigma1: np.nd
     n = Y.shape[0]
     if n == 1:
         return _skew_objective(np.zeros(0), W, Y)[0]
-    result = minimize(_skew_objective, np.zeros(n * (n - 1) // 2), args=(W, Y),
-                      jac=True, method='BFGS', options=dict(gtol=tol, maxiter=max_iter))
-    return result.fun
+    return _minimize_J(W, Y, np.zeros(n * (n - 1) // 2), tol, max_iter).fun
+
+
+def _minimize_J(W: np.ndarray, Y: np.ndarray, params_init: np.ndarray, tol: float,
+                max_iter: int, callback: Callable | None = None) -> OptimizeResult:
+    """
+    Minimizes J(K) over skew-symmetric K with BFGS and the analytic gradient.
+
+    Parameters
+    ----------
+    W : ndarray
+        Whitening matrix with W^T W = Sigma^{-1}, of shape (n_features, n_features).
+    Y : ndarray
+        Matrix Y(0) of the normalized pair, of shape (n_features, n_features).
+    params_init : ndarray
+        Upper-triangular entries of the initial K,
+        of shape (n_features * (n_features - 1) / 2,).
+    tol : float
+        Gradient tolerance of BFGS.
+    max_iter : int
+        Maximum number of BFGS iterations.
+    callback : callable, optional
+        SciPy callback called after each BFGS iteration.
+
+    Returns
+    -------
+    OptimizeResult
+        SciPy result; fun is J at the final iterate x.
+    """
+    return minimize(_skew_objective, params_init, args=(W, Y), jac=True, method='BFGS',
+                    callback=callback, options=dict(gtol=tol, maxiter=max_iter))
+
+
+def dist2_dF_with_minimizer(mu0: np.ndarray, Sigma0: np.ndarray, mu1: np.ndarray,
+                            Sigma1: np.ndarray, K_init: np.ndarray | None = None,
+                            tol: float = 1e-10, max_iter: int = 1000,
+                            ) -> tuple[float, np.ndarray]:
+    """
+    Squared Fisher-Rao distance as in dist2_dF, also returning the minimizer K*.
+
+    K* is expressed in the coordinates of the pair normalized by the Cholesky
+    factor of Sigma0 (see dist2_d0). Starting from K_init instead of K = 0 is
+    useful as a warm start when the pair changes slightly; the bound
+    d_F <= d_0 is then no longer guaranteed by construction.
+
+    Parameters
+    ----------
+    mu0, mu1 : ndarray
+        Means of shape (n_features,).
+    Sigma0, Sigma1 : ndarray
+        SPD covariance matrices of shape (n_features, n_features).
+    K_init : ndarray, optional
+        Initial skew-symmetric matrix of shape (n_features, n_features),
+        by default 0.
+    tol : float, optional
+        Gradient tolerance of BFGS (default 1e-10).
+    max_iter : int, optional
+        Maximum number of BFGS iterations (default 1000).
+
+    Returns
+    -------
+    dist2 : float
+        Squared Fisher-Rao distance J(K*).
+    K : ndarray
+        Skew-symmetric minimizer K* of shape (n_features, n_features).
+    """
+    W, Y = _reduced_problem(mu0, Sigma0, mu1, Sigma1)
+    n = Y.shape[0]
+    if n == 1:
+        return _skew_objective(np.zeros(0), W, Y)[0], np.zeros((1, 1))
+    rows, cols = np.triu_indices(n, 1)
+    params_init = np.zeros(rows.size) if K_init is None else K_init[rows, cols]
+    result = _minimize_J(W, Y, params_init, tol, max_iter)
+    return result.fun, _skew_from_params(result.x, n)
 
 
 def dist2_dF_iterates(mu0: np.ndarray, Sigma0: np.ndarray, mu1: np.ndarray, Sigma1: np.ndarray,
@@ -240,8 +313,7 @@ def dist2_dF_iterates(mu0: np.ndarray, Sigma0: np.ndarray, mu1: np.ndarray, Sigm
         params_iterates.append(intermediate_result.x.copy())
 
     if n > 1:
-        minimize(_skew_objective, params_iterates[0], args=(W, Y), jac=True, method='BFGS',
-                 callback=record_iterate, options=dict(gtol=tol, maxiter=max_iter))
+        _minimize_J(W, Y, params_iterates[0], tol, max_iter, callback=record_iterate)
     objectives = [_skew_objective(params, W, Y) for params in params_iterates]
     J_values = np.array([value for value, _ in objectives])
     grad_norms = np.array([np.max(np.abs(grad), initial=0.0) for _, grad in objectives])

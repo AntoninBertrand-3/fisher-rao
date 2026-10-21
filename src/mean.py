@@ -3,6 +3,8 @@ from typing import Callable
 import numpy as np
 from scipy.optimize import minimize
 
+from src.mvn import exp_map_mvn, fisher_norm2, log_map_mvn
+
 
 def arithmetic_mean(means: np.ndarray, covariances: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """
@@ -66,6 +68,76 @@ def geometric_mean(
             return M_new
         M = M_new
     return M
+
+
+def geometric_mean_mvn(
+    means: np.ndarray,
+    covariances: np.ndarray,
+    init: tuple[np.ndarray, np.ndarray] | None = None,
+    max_iter: int = 100,
+    tol: float = 1e-8,
+    step_size: float = 1.0,
+    return_iterates: bool = False,
+) -> tuple[np.ndarray, np.ndarray] | tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Computes the Fisher-Rao (Karcher) mean of a set of MVNs by Riemannian
+    gradient descent, the MVN analogue of geometric_mean.
+
+    Each iteration moves the current Gaussian P along the geodesic
+    P <- Exp_P(step_size * (1/K) sum_k Log_P(P_k)), the mean logarithm being
+    minus the Riemannian gradient of (1/2K) sum_k d_F^2(P, P_k). It stops
+    when the Fisher norm of the mean logarithm is below tol, i.e. when the
+    Karcher equation sum_k Log_P(P_k) = 0 holds numerically. The logarithms
+    come from log_map_mvn, warm-started at the minimizers K* of the previous
+    iteration. This certifies stationarity, not a global minimum.
+
+    Parameters
+    ----------
+    means : ndarray
+        Means of shape (n_mvn, n_features).
+    covariances : ndarray
+        SPD covariances of shape (n_mvn, n_features, n_features).
+    init : tuple of ndarray, optional
+        Initial (mean, covariance), by default the arithmetic mean.
+    max_iter : int, optional
+        Maximum number of iterations (default 100).
+    tol : float, optional
+        Tolerance on the Fisher norm of the mean logarithm (default 1e-8).
+    step_size : float, optional
+        Step along the geodesic (default 1).
+    return_iterates : bool, optional
+        If True, also returns the iterates (default False).
+
+    Returns
+    -------
+    mean : ndarray
+        Mean of the Karcher mean, of shape (n_features,).
+    covariance : ndarray
+        Covariance of the Karcher mean, of shape (n_features, n_features).
+    iterate_means : ndarray
+        Means of the iterates, of shape (n_iterates, n_features),
+        only if return_iterates is True.
+    iterate_covariances : ndarray
+        Covariances of the iterates, of shape (n_iterates, n_features, n_features),
+        only if return_iterates is True.
+    """
+    mean, covariance = arithmetic_mean(means, covariances) if init is None else init
+    K_starts = [None] * len(means)
+    iterates = [(mean, covariance)]
+    for _ in range(max_iter):
+        logs = [log_map_mvn(mean, covariance, mu, C, K_init=K, return_K=True)
+                for mu, C, K in zip(means, covariances, K_starts)]
+        v = np.mean([log[0] for log in logs], axis=0)
+        T = np.mean([log[1] for log in logs], axis=0)
+        K_starts = [log[2] for log in logs]
+        if np.sqrt(fisher_norm2(covariance, v, T)) < tol:
+            break
+        mean, covariance = exp_map_mvn(mean, covariance, v, T, t=step_size)
+        iterates.append((mean, covariance))
+    if return_iterates:
+        return (mean, covariance, np.array([m for m, _ in iterates]),
+                np.array([C for _, C in iterates]))
+    return mean, covariance
 
 
 def _unpack(params: np.ndarray, n_features: int) -> tuple[np.ndarray, np.ndarray]:

@@ -54,8 +54,11 @@ The repository follows the layout of the earlier `Simulated_data` project:
   `dist2_Fisher` (affine-invariant, between SPD matrices), `dist2_d0` (closed-form
   zeroth approximation) and `dist2_dF` (Fisher–Rao, by BFGS minimization of `J(K)`
   over skew-symmetric `K`, started at `K=0`);
+- `src/mvn.py` — Fisher–Rao `exp_map_mvn` (closed form, Kobayashi lift),
+  `log_map_mvn` (from the minimizer `K*` of `J`, via the lift `G_1(2K*)`) and `fisher_norm2`;
 - `src/mean.py` — `arithmetic_mean` of MVNs, SPD `geometric_mean` (fixed point),
-  and `frechet_mean(means, covariances, dist2)` for the `d_0` and `d_F` geometric means;
+  `geometric_mean_mvn` (Fisher–Rao Karcher mean by Riemannian gradient descent) and
+  `frechet_mean(means, covariances, dist2)` for the `d_0` and `d_F` geometric means;
 - `src/simulated_data.py` — `random_SPD`, SPD exponential map, `random_MVNs` around a central MVN;
 - `src/covariance.py` — sample estimators of Gaussian parameters.
 
