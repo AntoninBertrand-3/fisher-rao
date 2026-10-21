@@ -1,6 +1,6 @@
 import unittest
 import numpy as np
-from src.distance import dist2_L2, dist2_Fisher, dist2_d0, dist2_dF
+from src.distance import dist2_L2, dist2_Fisher, dist2_d0, dist2_dF, dist2_dF_iterates
 
 
 class TestDistances(unittest.TestCase):
@@ -97,6 +97,20 @@ class TestDistances(unittest.TestCase):
             self.assertAlmostEqual(dist2_dF(mu1, C1, mu0, C0), reference, places=8)
             self.assertAlmostEqual(dist2_dF(T @ mu0 + b, T @ C0 @ T.T, T @ mu1 + b, T @ C1 @ T.T),
                                    reference, places=8)
+
+    def test_dF_iterates(self):
+        # Les itérés partent de K = 0 (J = d_0^2) et finissent en d_F^2, J décroissant.
+        for mu0, C0, mu1, C1 in self.random_pairs:
+            dist2, Ks, J, grad_norms = dist2_dF_iterates(mu0, C0, mu1, C1)
+            d = mu0.size
+            self.assertEqual(Ks.shape, (J.size, d, d))
+            self.assertEqual(grad_norms.shape, J.shape)
+            np.testing.assert_array_equal(Ks[0], np.zeros((d, d)))
+            np.testing.assert_allclose(Ks, -Ks.swapaxes(-1, -2), atol=0)
+            self.assertAlmostEqual(J[0], dist2_d0(mu0, C0, mu1, C1), places=10)
+            self.assertEqual(dist2, J[-1])
+            self.assertAlmostEqual(dist2, dist2_dF(mu0, C0, mu1, C1), places=12)
+            self.assertTrue(np.all(np.diff(J) <= 1e-12))
 
 
 if __name__ == "__main__":
