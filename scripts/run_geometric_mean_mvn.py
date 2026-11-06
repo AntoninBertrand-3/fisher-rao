@@ -106,6 +106,46 @@ def mse_curve_geometric_mvn(
     return Ns_array, mse, runtime
 
 
+def plot_mse_curve(
+    Ns_array: np.ndarray,
+    mse: np.ndarray,
+    n_features: int,
+    n_MC: int,
+    radius: float,
+    condition_number: float,
+    out_path: str,
+) -> None:
+    """
+    Plots the Monte Carlo mean of d_F^2(P_hat_N, P) against N in log-log scale and saves it.
+
+    Parameters
+    ----------
+    Ns_array : ndarray
+        Values of N.
+    mse : ndarray
+        Mean over the Monte Carlo runs of d_F^2(P_hat_N, P), for each N.
+    n_features, n_MC, radius, condition_number
+        Experiment parameters, shown in the title.
+    out_path : str
+        Path of the saved PNG.
+    """
+    plt.figure()
+    plt.loglog(Ns_array, mse, marker="o")
+    plt.xlabel("N (number of MVNs in the mean)")
+    plt.ylabel(r"$d_F^2(\hat P_N,\ P)$, averaged over Monte Carlo runs")
+    plt.title(
+        r"Squared Fisher-Rao error between the geometric mean $\hat P_N$"
+        "\n"
+        r"of $N$ MVNs and the true MVN $P = \mathcal{N}(\mu, \Sigma)$"
+        "\n"
+        f"n={n_features}, {n_MC} Monte Carlo runs, radius={radius}, kappa={condition_number}",
+        fontsize=10,
+    )
+    plt.grid(True, which="both", alpha=0.4)
+    plt.tight_layout()
+    plt.savefig(out_path, dpi=150)
+
+
 def main() -> None:
     """
     Plots the Monte Carlo MSE of the Fisher-Rao geometric mean of MVNs against N.
@@ -142,24 +182,9 @@ def main() -> None:
     np.savetxt("output/geometric_mean_mvn_mse.csv", np.column_stack([Ns_array, mse, reference]),
                delimiter=",", header="N,mse_dF2,reference", comments="")
 
-    # ----- tracé matplotlib : N vs MSE (en dB) -----
-    plt.figure()
-    plt.plot(Ns_array, 10 * np.log10(mse + 1e-300), marker="o", label="Fisher-Rao geometric mean")
-    plt.plot(Ns_array, 10 * np.log10(reference), ls="--", c="gray",
-             label=r"$r^2\,E\|\xi\|^2/N$ (asymptotic)")
-    plt.xscale("log")
-    plt.xlabel("N (nombre de MVN, log scale)")
-    plt.ylabel(r"MSE $d_F^2$ vs true MVN (dB)")
-    plt.title(
-        f"Monte Carlo MSE of the Fisher-Rao geometric mean\n"
-        f"n_features={n_features}, n_MC={n_MC}, radius={radius}, kappa={condition_number}"
-    )
-    plt.grid(True)
-    plt.legend()
-    plt.tight_layout()
-
+    # ----- tracé matplotlib : N vs MSE (log-log) -----
     out_path = "output/geometric_mean_mvn_mse.png"
-    plt.savefig(out_path, dpi=150)
+    plot_mse_curve(Ns_array, mse, n_features, n_MC, radius, condition_number, out_path)
     print(f"[run_geometric_mean_mvn] saved figure -> {out_path} and data -> output/geometric_mean_mvn_mse.csv")
 
     plt.show(block=True)
