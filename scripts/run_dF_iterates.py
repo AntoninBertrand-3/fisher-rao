@@ -18,16 +18,16 @@ def main() -> None:
     prescribed, and P1 = Exp_{P0}(a, A). The geodesic has length
     d_True^2 = ||a||^2 + Tr(A^2) / 2 >= d_F^2; d_True is taken as the reference d_F,
     which assumes that this geodesic is minimizing (not guaranteed).
-    The default case has the parameters of the last row of the run_dF_random_geodesics table
-    (n = 30, ||a|| = 10, lambda = 30) with seed 18 instead of 15.
+    The default case (n = 10, ||a|| = 7, lambda = 1000, seed = 7) was chosen in a scan of
+    (n, ||a||, lambda, seed) for a large d_0 error with J(K_k) staying above d_True^2.
     """
     print("[run_dF_iterates] starting...")
 
-    # ----- paramètres du cas (dernière ligne du tableau de run_dF_random_geodesics, autre seed) -----
-    n_features = 30
-    mean_norm = 10.0   # ||a||
-    stretch = 30.0     # lambda : valeurs propres de exp(A) de 1/lambda à lambda
-    seed = 18          # le tableau utilise 15 ; avec 18, J(K_k) reste au-dessus de d_True^2
+    # ----- paramètres du cas : erreur de d_0 élevée, J(K_k) reste au-dessus de d_True^2 -----
+    n_features = 10
+    mean_norm = 7.0    # ||a||
+    stretch = 1000.0   # lambda : valeurs propres de exp(A) de 1/lambda à lambda
+    seed = 7
 
     # ----- paramètres de l'optimiseur -----
     tol = 1e-10
@@ -101,11 +101,14 @@ def main() -> None:
     ax_J.legend()
     ax_J.grid(True, ls=":")
 
-    ax_gap.semilogy(np.abs(J_values - d_True**2), marker="o", ms=3, label=r"$|J(K_k) - d_{True}^2|$")
-    ax_gap.semilogy(grad_norms, marker="s", ms=3, label=r"$\|\nabla J(K_k)\|_\infty$")
+    # Échelle en dB : x_dB = 10 log10(x), soit 10 dB par décade.
+    ax_gap.plot(10 * np.log10(np.abs(J_values - d_True**2)), marker="o", ms=3,
+                label=r"$|J(K_k) - d_{True}^2|$")
+    ax_gap.plot(10 * np.log10(grad_norms), marker="s", ms=3, label=r"$\|\nabla J(K_k)\|_\infty$")
     ax_gap.set_xlabel("Itération k")
+    ax_gap.set_ylabel("dB")
     ax_gap.legend()
-    ax_gap.grid(True, which="both", ls=":")
+    ax_gap.grid(True, ls=":")
 
     fig.suptitle(f"BFGS pour $d_F$ (n={n_features}, $d_{{True}}$={d_True:.4f}, "
                  f"$d_F$={d_F:.4f}, $d_0$={d_0:.4f})")
