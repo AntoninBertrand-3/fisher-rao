@@ -18,15 +18,15 @@ def main() -> None:
     prescribed, and P1 = Exp_{P0}(a, A). The geodesic has length
     d_True^2 = ||a||^2 + Tr(A^2) / 2 >= d_F^2; d_True is taken as the reference d_F,
     which assumes that this geodesic is minimizing (not guaranteed).
-    The default case is the last row of the run_dF_random_geodesics table.
+    The default case is the last n = 10 row of the run_dF_random_geodesics table.
     """
     print("[run_dF_iterates] starting...")
 
-    # ----- paramètres du cas (dernière ligne du tableau de run_dF_random_geodesics) -----
-    n_features = 30
+    # ----- paramètres du cas (dernière ligne n = 10 du tableau de run_dF_random_geodesics) -----
+    n_features = 10
     mean_norm = 10.0   # ||a||
     stretch = 30.0     # lambda : valeurs propres de exp(A) de 1/lambda à lambda
-    seed = 15          # BASE_SEED + indice de la configuration dans run_dF_random_geodesics
+    seed = 11          # BASE_SEED + indice de la configuration dans run_dF_random_geodesics
 
     # ----- paramètres de l'optimiseur -----
     tol = 1e-10
