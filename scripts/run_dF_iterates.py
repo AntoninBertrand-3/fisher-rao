@@ -8,7 +8,22 @@ from scripts.run_dF_random_geodesics import build_case
 from src.distance import dist2_dF_iterates
 
 
-def main() -> None:
+# (n, ||a||, lambda, seed, préfixe des sorties)
+CASES = (
+    # Erreur de d_0 élevée (8 %), J(K_k) reste au-dessus de d_True^2 ; choisi par un balayage
+    # de (n, ||a||, lambda, seed).
+    (10, 7.0, 1000.0, 7, "output/dF_iterates"),
+    # Paramètres de la dernière ligne du tableau de run_dF_random_geodesics, graine 18 au lieu
+    # de 15 : avec 15, J(K_k) passe sous d_True^2 au niveau de l'erreur d'arrondi.
+    (30, 10.0, 30.0, 18, "output/dF_iterates_n30_seed18"),
+)
+TOL = 1e-10
+MAX_ITER = 1000
+# Seuil relatif pour comparer d_F (BFGS) à d_True, au-dessus de l'erreur d'arrondi.
+AGREEMENT_RTOL = 1e-6
+
+
+def run_case(n_features: int, mean_norm: float, stretch: float, seed: int, out_stem: str) -> None:
     """
     Builds a pair of MVNs joined by a known geodesic, computes d_F by BFGS and
     compares it, together with d_0, to the length d_True of that geodesic.
@@ -18,22 +33,22 @@ def main() -> None:
     prescribed, and P1 = Exp_{P0}(a, A). The geodesic has length
     d_True^2 = ||a||^2 + Tr(A^2) / 2 >= d_F^2; d_True is taken as the reference d_F,
     which assumes that this geodesic is minimizing (not guaranteed).
-    The default case (n = 10, ||a|| = 7, lambda = 1000, seed = 7) was chosen in a scan of
-    (n, ||a||, lambda, seed) for a large d_0 error with J(K_k) staying above d_True^2.
+    Saves the iterates (CSV), the case record (JSON) and the figure (PNG) under out_stem.
+
+    Parameters
+    ----------
+    n_features : int
+        Dimension n.
+    mean_norm : float
+        Norm ||a|| of the mean velocity.
+    stretch : float
+        lambda: eigenvalues of exp(A) log-spaced from 1/lambda to lambda.
+    seed : int
+        Seed of build_case.
+    out_stem : str
+        Output path without extension.
     """
-    print("[run_dF_iterates] starting...")
-
-    # ----- paramètres du cas : erreur de d_0 élevée, J(K_k) reste au-dessus de d_True^2 -----
-    n_features = 10
-    mean_norm = 7.0    # ||a||
-    stretch = 1000.0   # lambda : valeurs propres de exp(A) de 1/lambda à lambda
-    seed = 7
-
-    # ----- paramètres de l'optimiseur -----
-    tol = 1e-10
-    max_iter = 1000
-    # Seuil relatif pour comparer d_F (BFGS) à d_True, au-dessus de l'erreur d'arrondi.
-    agreement_rtol = 1e-6
+    tol, max_iter, agreement_rtol = TOL, MAX_ITER, AGREEMENT_RTOL
 
     # ----- génération de la paire, comme dans run_dF_random_geodesics -----
     case = build_case(n_features, mean_norm, stretch, seed)
@@ -74,7 +89,7 @@ def main() -> None:
     print("k\tJ(K_k)\t\tJ(K_k) - d_True^2\t|grad|_inf")
     print("-" * 64)
     table = np.column_stack([np.arange(n_iter + 1), J_values, J_values - d_True**2, grad_norms])
-    np.savetxt("output/dF_iterates.csv", table, delimiter=",",
+    np.savetxt(f"{out_stem}.csv", table, delimiter=",",
                header="k,J,J_minus_dTrue2,grad_inf", comments="")
     for k, J, gap, grad in table:
         print(f"{int(k):3d}\t{J:.10e}\t{gap:+.3e}\t\t{grad:.3e}")
@@ -89,7 +104,7 @@ def main() -> None:
         d_True=d_True, d_F=d_F, d_0=d_0, rel_error_dF=rel_error_dF, rel_error_d0=rel_error_d0,
         n_iter=n_iter, final_grad_inf=grad_norms[-1], time_dF=time_dF, verdict=verdict,
     )
-    with open("output/dF_iterates.json", "w", encoding="utf-8") as f:
+    with open(f"{out_stem}.json", "w", encoding="utf-8") as f:
         json.dump(record, f, indent=2, ensure_ascii=False)
 
     # ----- tracé : J(K_k) et écart à d_True^2 -----
@@ -114,11 +129,17 @@ def main() -> None:
                  f"$d_F$={d_F:.4f}, $d_0$={d_0:.4f})")
     fig.tight_layout()
 
-    out_path = "output/dF_iterates.png"
-    fig.savefig(out_path, dpi=150)
-    print(f"[run_dF_iterates] saved figure -> {out_path}, "
-          f"data -> output/dF_iterates.csv and output/dF_iterates.json")
+    fig.savefig(f"{out_stem}.png", dpi=150)
+    print(f"[run_dF_iterates] saved {out_stem}.{{png,csv,json}}")
 
+
+def main() -> None:
+    """
+    Runs run_case on each case of CASES.
+    """
+    print("[run_dF_iterates] starting...")
+    for n_features, mean_norm, stretch, seed, out_stem in CASES:
+        run_case(n_features, mean_norm, stretch, seed, out_stem)
     plt.show(block=True)
     print("[run_dF_iterates] done.")
 
