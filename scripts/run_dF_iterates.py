@@ -4,9 +4,8 @@ import time
 import numpy as np
 import matplotlib.pyplot as plt
 
+from scripts.run_dF_random_geodesics import build_case
 from src.distance import dist2_dF_iterates
-from src.mvn import exp_map_mvn, fisher_norm2
-from src.simulated_data import random_SPD, sym
 
 
 def main() -> None:
@@ -14,22 +13,20 @@ def main() -> None:
     Builds a pair of MVNs joined by a known geodesic, computes d_F by BFGS and
     compares it, together with d_0, to the length d_True of that geodesic.
 
-    The first MVN N(mu0, Sigma0) is random, with cond(Sigma0) prescribed. A random
-    tangent vector (v, T) is drawn with prescribed Fisher norms mean_speed and
-    cov_speed of its mean and covariance parts, and
-    N(mu1, Sigma1) = Exp_{N(mu0, Sigma0)}(v, T). The geodesic t -> Exp(t (v, T)),
-    t in [0, 1], has length d_True = sqrt(mean_speed^2 + cov_speed^2) >= d_F;
-    d_True is taken as the reference d_F,
-    which assumes that this geodesic is minimizing (not guaranteed for large d_True).
+    The pair is drawn exactly as in run_dF_random_geodesics (build_case):
+    P0 = N(0, I_n), initial velocity (a, A) with ||a|| and the stretch lambda of A
+    prescribed, and P1 = Exp_{P0}(a, A). The geodesic has length
+    d_True^2 = ||a||^2 + Tr(A^2) / 2 >= d_F^2; d_True is taken as the reference d_F,
+    which assumes that this geodesic is minimizing (not guaranteed).
+    The default case is the last row of the run_dF_random_geodesics table.
     """
     print("[run_dF_iterates] starting...")
 
-    # ----- paramètres du cas -----
-    n_features = 3
-    condition_number = 10.0   # cond(Sigma0)
-    mean_speed = 1.0          # norme de Fisher de la partie moyenne : ||L^{-1} v||
-    cov_speed = 1.0           # norme de Fisher de la partie covariance : ||L^{-1} T L^{-T}||_F / sqrt(2)
-    seed = 0
+    # ----- paramètres du cas (dernière ligne du tableau de run_dF_random_geodesics) -----
+    n_features = 30
+    mean_norm = 10.0   # ||a||
+    stretch = 30.0     # lambda : valeurs propres de exp(A) de 1/lambda à lambda
+    seed = 15          # BASE_SEED + indice de la configuration dans run_dF_random_geodesics
 
     # ----- paramètres de l'optimiseur -----
     tol = 1e-10
@@ -37,27 +34,11 @@ def main() -> None:
     # Seuil relatif pour comparer d_F (BFGS) à d_True, au-dessus de l'erreur d'arrondi.
     agreement_rtol = 1e-6
 
-    # ----- génération de la première MVN et du vecteur tangent -----
-    # random_SPD utilise le générateur global de NumPy (via scipy.stats).
-    np.random.seed(seed)
-    mu0 = np.random.standard_normal(n_features)
-    Sigma0 = random_SPD(n_features, condition_number)
-    L = np.linalg.cholesky(Sigma0)
-
-    # Vitesse blanchie (a, A) en N(0, I), normalisée selon la métrique de Fisher :
-    # ||a||^2 = mean_speed^2 et Tr(A^2) / 2 = cov_speed^2.
-    a = np.random.standard_normal(n_features)
-    a *= mean_speed / np.linalg.norm(a)
-    A = sym(np.random.standard_normal((n_features, n_features)))
-    A *= cov_speed / np.sqrt(0.5 * np.sum(A**2))
-    v, T = L @ a, L @ A @ L.T
-
-    # Longueur de la géodésique t -> Exp(t (v, T)), t in [0, 1] :
-    # d_True = ||(v, T)|| = sqrt(mean_speed^2 + cov_speed^2).
-    d_True = np.sqrt(fisher_norm2(Sigma0, v, T))
-    mu1, Sigma1 = exp_map_mvn(mu0, Sigma0, v, T)
-    print(f"  n = {n_features}, cond(Sigma0) = {condition_number:g}, "
-          f"mean_speed = {mean_speed:g}, cov_speed = {cov_speed:g}, seed = {seed}")
+    # ----- génération de la paire, comme dans run_dF_random_geodesics -----
+    case = build_case(n_features, mean_norm, stretch, seed)
+    mu0, Sigma0, mu1, Sigma1 = case["mu0"], case["Sigma0"], case["mu1"], case["Sigma1"]
+    d_True = case["d_True"]
+    print(f"  n = {n_features}, ||a|| = {mean_norm:g}, lambda = {stretch:g}, seed = {seed}")
     print(f"  cond(Sigma1) = {np.linalg.cond(Sigma1):.3g}")
 
     # ----- calcul de d_F avec ses itérés -----
@@ -99,10 +80,10 @@ def main() -> None:
 
     # ----- enregistrement du cas, pour reproductibilité -----
     record = dict(
-        n_features=n_features, condition_number=condition_number, mean_speed=mean_speed,
-        cov_speed=cov_speed, seed=seed, tol=tol, max_iter=max_iter,
+        n_features=n_features, mean_norm=mean_norm, stretch=stretch, seed=seed,
+        construction="build_case of run_dF_random_geodesics", tol=tol, max_iter=max_iter,
         optimizer="BFGS, K_0 = 0, analytic gradient",
-        mu0=mu0.tolist(), Sigma0=Sigma0.tolist(), v=v.tolist(), T=T.tolist(),
+        a=case["a"].tolist(), eigenvalues_A=case["eigenvalues_A"].tolist(),
         mu1=mu1.tolist(), Sigma1=Sigma1.tolist(),
         d_True=d_True, d_F=d_F, d_0=d_0, rel_error_dF=rel_error_dF, rel_error_d0=rel_error_d0,
         n_iter=n_iter, final_grad_inf=grad_norms[-1], time_dF=time_dF, verdict=verdict,
@@ -112,14 +93,14 @@ def main() -> None:
 
     # ----- tracé : J(K_k) et écart à d_True^2 -----
     fig, (ax_J, ax_gap) = plt.subplots(1, 2, figsize=(11, 4))
-    ax_J.plot(J_values, marker="o", label=r"$J(K_k)$")
+    ax_J.plot(J_values, marker="o", ms=3, label=r"$J(K_k)$")
     ax_J.axhline(d_True**2, ls=":", c="k", label=r"$d_{True}^2$")
     ax_J.set_xlabel("Itération k")
     ax_J.set_ylabel(r"$J(K_k)$")
     ax_J.legend()
     ax_J.grid(True, ls=":")
 
-    ax_gap.semilogy(np.abs(J_values - d_True**2), marker="o", label=r"$|J(K_k) - d_{True}^2|$")
+    ax_gap.semilogy(np.abs(J_values - d_True**2), marker="o", ms=3, label=r"$|J(K_k) - d_{True}^2|$")
     ax_gap.semilogy(grad_norms, marker="s", ms=3, label=r"$\|\nabla J(K_k)\|_\infty$")
     ax_gap.set_xlabel("Itération k")
     ax_gap.legend()
