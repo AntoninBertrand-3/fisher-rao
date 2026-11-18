@@ -172,6 +172,6 @@
   "rel_error_d0": 0.0830439028295714,
   "n_iter": 85,
   "final_grad_inf": 9.781454624047115e-08,
-  "time_dF": 0.04428419999931066,
+  "time_dF": 0.05708039999990433,
   "verdict": "d_F (BFGS) = d_True à la tolérance près."
 }

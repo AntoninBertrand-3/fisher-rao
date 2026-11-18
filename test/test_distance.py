@@ -1,7 +1,7 @@
 import unittest
 import numpy as np
 from src.distance import (dist2_L2, dist2_Fisher, dist2_d0, dist2_dF, dist2_dF_iterates,
-                          dist2_dF_with_minimizer)
+                          dist2_dF_with_minimizer, _reduced_problem, _skew_objective)
 
 
 class TestDistances(unittest.TestCase):
@@ -124,6 +124,44 @@ class TestDistances(unittest.TestCase):
             dist2_warm, K_warm = dist2_dF_with_minimizer(mu0, C0, mu1, C1, K_init=K)
             self.assertAlmostEqual(dist2_warm, dist2, places=10)
             np.testing.assert_allclose(K_warm, K, atol=1e-6)
+
+    # ---------- 7. Objectif J(K) et son gradient ----------
+    def test_skew_gradient_finite_differences(self):
+        # Gradient analytique comparé aux différences finies centrées, en K = 0 et K aléatoire.
+        rng = np.random.default_rng(1)
+        h = 1e-6
+        for mu0, C0, mu1, C1 in self.random_pairs[1:]:
+            W, Y = _reduced_problem(mu0, C0, mu1, C1)
+            n_params = mu0.size * (mu0.size - 1) // 2
+            for params in (np.zeros(n_params), rng.normal(size=n_params)):
+                steps = h * np.eye(n_params)
+                numerical = np.array([(_skew_objective(params + e, W, Y)[0]
+                                       - _skew_objective(params - e, W, Y)[0]) / (2 * h) for e in steps])
+                np.testing.assert_allclose(_skew_objective(params, W, Y)[1], numerical,
+                                           rtol=1e-6, atol=1e-6)
+
+    def test_skew_zero_critical_when_mean_is_eigenvector(self):
+        # Si mu est vecteur propre de Sigma, Sigma commute avec Y(0) et grad J(0) = 0.
+        Q = np.linalg.qr(np.random.default_rng(2).normal(size=(4, 4)))[0]
+        Sigma = Q @ np.diag([5., 2., 1., .1]) @ Q.T
+        for mu in (np.zeros(4), 3 * Q[:, 1]):
+            W, Y = _reduced_problem(np.zeros(4), np.eye(4), mu, Sigma)
+            np.testing.assert_allclose(_skew_objective(np.zeros(6), W, Y)[1], 0, atol=1e-12)
+
+    def test_skew_objective_matches_kobayashi_lift(self):
+        # J(S/2) = ||log G(S)||_F^2 / 4, G(S) = M_{mu,S} D_Sigma M_{mu,S}^T le relevé de Kobayashi.
+        rng = np.random.default_rng(3)
+        for _, _, mu, Sigma in self.random_pairs[1:]:
+            n = mu.size
+            S_upper = np.triu(rng.normal(size=(n, n)), 1)
+            S = S_upper - S_upper.T
+            I, Z, z, m = np.eye(n), np.zeros((n, n)), np.zeros((n, 1)), mu[:, None]
+            M = np.block([[I, z, Z], [m.T, np.ones((1, 1)), z.T], [S - 0.5 * m @ m.T, -m, I]])
+            D = np.block([[np.linalg.inv(Sigma), z, Z], [z.T, np.ones((1, 1)), z.T], [Z, z, Sigma]])
+            lifted = 0.25 * np.sum(np.log(np.linalg.eigvalsh(M @ D @ M.T))**2)
+            W, Y = _reduced_problem(np.zeros(n), I, mu, Sigma)
+            rows, cols = np.triu_indices(n, 1)
+            self.assertAlmostEqual(_skew_objective(S[rows, cols] / 2, W, Y)[0] / lifted, 1.0, places=10)
 
 
 if __name__ == "__main__":
