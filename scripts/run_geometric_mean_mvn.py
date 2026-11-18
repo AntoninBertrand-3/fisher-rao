@@ -1,3 +1,4 @@
+import argparse
 import time
 
 import numpy as np
@@ -148,13 +149,23 @@ def plot_mse_curve(
 def main() -> None:
     """
     Plots the Monte Carlo MSE of the Fisher-Rao geometric mean of MVNs against N.
+
+    The defaults reproduce the n=5 run; for another dimension the outputs get
+    the suffix _n<n_features>, e.g. python -m scripts.run_geometric_mean_mvn
+    --n-features 20 --Ns 5 10 20 50 100 200 --n-mc 10.
     """
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--n-features", type=int, default=5)
+    parser.add_argument("--Ns", type=int, nargs="+", default=[5, 10, 20, 50, 100, 200, 500])
+    parser.add_argument("--n-mc", type=int, default=20)
+    args = parser.parse_args()
+
     print("[run_geometric_mean_mvn] starting…")
 
     # ----- paramètres -----
-    n_features = 5
-    Ns = (5, 10, 20, 50, 100, 200, 500)
-    n_MC = 20
+    n_features = args.n_features
+    Ns = tuple(args.Ns)
+    n_MC = args.n_mc
     condition_number = 10.0
     radius = 0.1
     seed = 0
@@ -178,13 +189,13 @@ def main() -> None:
     print("N\tMSE d_F^2\tradius^2 E||xi||^2 / N")
     for N, value, ref in zip(Ns_array, mse, reference):
         print(f"{N}\t{value:.4e}\t{ref:.4e}")
-    np.savetxt("output/geometric_mean_mvn_mse.csv", np.column_stack([Ns_array, mse, reference]),
+    stem = "output/geometric_mean_mvn_mse" + ("" if n_features == 5 else f"_n{n_features}")
+    np.savetxt(f"{stem}.csv", np.column_stack([Ns_array, mse, reference]),
                delimiter=",", header="N,mse_dF2,reference", comments="")
 
     # ----- tracé matplotlib : N vs MSE (log-log) -----
-    out_path = "output/geometric_mean_mvn_mse.png"
-    plot_mse_curve(Ns_array, mse, n_features, n_MC, radius, condition_number, out_path)
-    print(f"[run_geometric_mean_mvn] saved figure -> {out_path} and data -> output/geometric_mean_mvn_mse.csv")
+    plot_mse_curve(Ns_array, mse, n_features, n_MC, radius, condition_number, f"{stem}.png")
+    print(f"[run_geometric_mean_mvn] saved figure -> {stem}.png and data -> {stem}.csv")
 
     plt.show(block=True)
     print("[run_geometric_mean_mvn] done.")
