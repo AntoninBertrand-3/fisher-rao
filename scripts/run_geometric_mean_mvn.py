@@ -116,7 +116,7 @@ def plot_mse_curve(
     out_path: str,
 ) -> None:
     """
-    Plots the Monte Carlo mean of d_F^2(P_hat_N, P) against N in log-log scale and saves it.
+    Plots the Monte Carlo mean of d_F^2(P_hat_N, P) in dB against N in log scale and saves it.
 
     Parameters
     ----------
@@ -130,18 +130,17 @@ def plot_mse_curve(
         Path of the saved PNG.
     """
     plt.figure()
-    plt.loglog(Ns_array, mse, marker="o")
-    plt.xlabel("N (number of MVNs in the mean)")
-    plt.ylabel(r"$d_F^2(\hat P_N,\ P)$, averaged over Monte Carlo runs")
+    # Échelle en dB : x_dB = 10 log10(x), soit 10 dB par décade.
+    plt.plot(Ns_array, 10 * np.log10(mse), marker="o", label="Geometric mean (exp map)")
+    plt.xscale("log")
+    plt.xlabel("N (nombre de MVN, log scale)")
+    plt.ylabel(r"MSE $d_F^2(\hat P_N, P)$ vs true MVN (dB)")
     plt.title(
-        r"Squared Fisher-Rao error between the geometric mean $\hat P_N$"
-        "\n"
-        r"of $N$ MVNs and the true MVN $P = \mathcal{N}(\mu, \Sigma)$"
-        "\n"
-        f"n={n_features}, {n_MC} Monte Carlo runs, radius={radius}, kappa={condition_number}",
-        fontsize=10,
+        "Monte Carlo MSE of the Fisher-Rao geometric mean of MVNs\n"
+        f"n_features={n_features}, n_MC={n_MC}, radius={radius}, kappa={condition_number}"
     )
-    plt.grid(True, which="both", alpha=0.4)
+    plt.grid(True)
+    plt.legend()
     plt.tight_layout()
     plt.savefig(out_path, dpi=150)
 
@@ -153,8 +152,8 @@ def main() -> None:
     print("[run_geometric_mean_mvn] starting…")
 
     # ----- paramètres -----
-    n_features = 3
-    Ns = (5, 10, 20, 50, 100)
+    n_features = 5
+    Ns = (5, 10, 20, 50, 100, 200, 500)
     n_MC = 20
     condition_number = 10.0
     radius = 0.1
