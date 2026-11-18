@@ -1,0 +1,43 @@
+{
+  "n_features": 10,
+  "mean_norm": 7.0,
+  "stretch": 1000.0,
+  "seed": 7,
+  "construction": "build_case of run_dF_random_geodesics",
+  "tol": 1e-10,
+  "max_iter": 1000,
+  "optimizer": "BFGS on J(K), analytic gradient",
+  "initializations": {
+    "zero": "K_0 = 0",
+    "horizontal": "K_0 = S_init / 2, S_init fiber parameter of exp of the horizontal projection of log G_1(0); S = 2K is a numerical observation"
+  },
+  "d_True": 12.091379795489457,
+  "d_0": 13.095495164301527,
+  "time_S_init": 0.00033150000126624946,
+  "horizontal_init_diagnostics": {
+    "norm_vertical_part": 1.7167239299525716,
+    "tangent_defect_a": 1.9108658219528e-05,
+    "tangent_defect_A": 0.00017745949497321165,
+    "skew_defect_S_init": 5.251359142237599e-10
+  },
+  "runs": {
+    "zero": {
+      "J_start": 171.49199359824468,
+      "n_iter": 85,
+      "d_F": 12.091379795509765,
+      "rel_error_dF": 1.6794866865069493e-12,
+      "final_grad_inf": 9.781454624047115e-08,
+      "dist_start_to_K_star": 16.337661076059796,
+      "runtime": 0.0533980000000156
+    },
+    "horizontal": {
+      "J_start": 158.26634660711053,
+      "n_iter": 83,
+      "d_F": 12.09137979550977,
+      "rel_error_dF": 1.6799274195422468e-12,
+      "final_grad_inf": 8.969140985470858e-09,
+      "dist_start_to_K_star": 12.737866730618656,
+      "runtime": 0.04807799999980489
+    }
+  }
+}

@@ -217,13 +217,15 @@ def dist2_dF_with_minimizer(mu0: np.ndarray, Sigma0: np.ndarray, mu1: np.ndarray
 
 
 def dist2_dF_iterates(mu0: np.ndarray, Sigma0: np.ndarray, mu1: np.ndarray, Sigma1: np.ndarray,
-                      tol: float = 1e-10, max_iter: int = 1000,
+                      tol: float = 1e-10, max_iter: int = 1000, K_init: np.ndarray | None = None,
                       ) -> tuple[float, np.ndarray, np.ndarray, np.ndarray]:
     """
     Squared Fisher-Rao distance as in dist2_dF, also returning the BFGS iterates.
 
-    The iterates K_0 = 0, K_1, ..., K_T are those of the BFGS minimization of
-    J(K) used by dist2_dF, so that J(K_0) = d_0^2 and J(K_T) = d_F^2.
+    The iterates K_0, K_1, ..., K_T are those of the BFGS minimization of J(K).
+    With the default K_0 = 0 they are those of dist2_dF, so that J(K_0) = d_0^2
+    and J(K_T) = d_F^2. K_0 is in the coordinates of the pair normalized by the
+    Cholesky factor of Sigma0, as in dist2_dF_with_minimizer.
 
     Parameters
     ----------
@@ -235,6 +237,9 @@ def dist2_dF_iterates(mu0: np.ndarray, Sigma0: np.ndarray, mu1: np.ndarray, Sigm
         Gradient tolerance of BFGS (default 1e-10).
     max_iter : int, optional
         Maximum number of BFGS iterations (default 1000).
+    K_init : ndarray, optional
+        Initial skew-symmetric matrix K_0 of shape (n_features, n_features),
+        by default 0.
 
     Returns
     -------
@@ -250,7 +255,8 @@ def dist2_dF_iterates(mu0: np.ndarray, Sigma0: np.ndarray, mu1: np.ndarray, Sigm
     """
     W, Y = _reduced_problem(mu0, Sigma0, mu1, Sigma1)
     n = Y.shape[0]
-    params_iterates = [np.zeros(n * (n - 1) // 2)]
+    rows, cols = np.triu_indices(n, 1)
+    params_iterates = [np.zeros(rows.size) if K_init is None else K_init[rows, cols]]
 
     def record_iterate(intermediate_result) -> None:
         """
@@ -269,7 +275,6 @@ def dist2_dF_iterates(mu0: np.ndarray, Sigma0: np.ndarray, mu1: np.ndarray, Sigm
     objectives = [_skew_objective(params, W, Y) for params in params_iterates]
     J_values = np.array([value for value, _ in objectives])
     grad_norms = np.array([np.max(np.abs(grad), initial=0.0) for _, grad in objectives])
-    rows, cols = np.triu_indices(n, 1)
     K_upper = np.zeros((len(params_iterates), n, n))
     K_upper[:, rows, cols] = params_iterates
     K_iterates = K_upper - K_upper.transpose(0, 2, 1)

@@ -113,6 +113,18 @@ class TestDistances(unittest.TestCase):
             self.assertAlmostEqual(dist2, dist2_dF(mu0, C0, mu1, C1), places=12)
             self.assertTrue(np.all(np.diff(J) <= 1e-12))
 
+    def test_dF_iterates_K_init(self):
+        # Départ en K_init : premier itéré K_init, même minimum que depuis K = 0.
+        rng = np.random.default_rng(1)
+        for mu0, C0, mu1, C1 in self.random_pairs:
+            d = mu0.size
+            X = rng.standard_normal((d, d))
+            K_init = 0.5 * (X - X.T)
+            dist2, Ks, J, _ = dist2_dF_iterates(mu0, C0, mu1, C1, K_init=K_init)
+            np.testing.assert_allclose(Ks[0], K_init, atol=1e-15)
+            self.assertAlmostEqual(dist2, dist2_dF(mu0, C0, mu1, C1), places=10)
+            self.assertTrue(np.all(np.diff(J) <= 1e-12))
+
     def test_dF_with_minimizer(self):
         # Même valeur que dist2_dF, K* antisymétrique, et redémarrage en K* stable.
         for mu0, C0, mu1, C1 in self.random_pairs:
